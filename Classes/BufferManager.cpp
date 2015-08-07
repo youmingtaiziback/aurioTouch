@@ -46,14 +46,12 @@ BufferManager::~BufferManager()
 }
 
 
-void BufferManager::CopyAudioDataToDrawBuffer( Float32* inData, UInt32 inNumFrames )
-{
-    if (inData == NULL) return;
+void BufferManager::CopyAudioDataToDrawBuffer( Float32* inData, UInt32 inNumFrames ) {
+    if (inData == NULL)
+        return;
     
-    for (UInt32 i=0; i<inNumFrames; i++)
-    {
-        if ((i+mDrawBufferIndex) >= mCurrentDrawBufferLen)
-        {
+    for (UInt32 i=0; i<inNumFrames; i++) {
+        if ((i+mDrawBufferIndex) >= mCurrentDrawBufferLen) {
             CycleDrawBuffers();
             mDrawBufferIndex = -i;
         }

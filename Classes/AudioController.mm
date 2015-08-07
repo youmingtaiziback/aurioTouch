@@ -24,7 +24,6 @@ struct CallbackData {
     DCRejectionFilter*      dcRejectionFilter;
     BOOL*                   muteAudio;
     BOOL*                   audioChainIsBeingReconstructed;
-    
     CallbackData(): rioUnit(NULL), bufferManager(NULL), muteAudio(NULL), audioChainIsBeingReconstructed(NULL) {}
 } cd;
 
@@ -36,8 +35,7 @@ static OSStatus	performRender (void                         *inRefCon,
                                UInt32 						inNumberFrames,
                                AudioBufferList              *ioData) {
     OSStatus err = noErr;
-    if (*cd.audioChainIsBeingReconstructed == NO)
-    {
+    if (*cd.audioChainIsBeingReconstructed == NO) {
         // we are calling AudioUnitRender on the input bus of AURemoteIO
         // this will store the audio data captured by the microphone in ioData
         err = AudioUnitRender(cd.rioUnit, ioActionFlags, inTimeStamp, 1, inNumberFrames, ioData);
@@ -47,22 +45,15 @@ static OSStatus	performRender (void                         *inRefCon,
         
         // based on the current display mode, copy the required data to the buffer manager
         if (cd.bufferManager->GetDisplayMode() == aurioTouchDisplayModeOscilloscopeWaveform)
-        {
             cd.bufferManager->CopyAudioDataToDrawBuffer((Float32*)ioData->mBuffers[0].mData, inNumberFrames);
-        }
-        
         else if ((cd.bufferManager->GetDisplayMode() == aurioTouchDisplayModeSpectrum) || (cd.bufferManager->GetDisplayMode() == aurioTouchDisplayModeOscilloscopeFFT))
-        {
             if (cd.bufferManager->NeedsNewFFTData())
                 cd.bufferManager->CopyAudioDataToFFTInputBuffer((Float32*)ioData->mBuffers[0].mData, inNumberFrames);
-        }
         
         // mute audio if needed
         if (*cd.muteAudio)
-        {
             for (UInt32 i=0; i<ioData->mNumberBuffers; ++i)
                 memset(ioData->mBuffers[i].mData, 0, ioData->mBuffers[i].mDataByteSize);
-        }
     }
     
     return err;
@@ -94,6 +85,27 @@ static OSStatus	performRender (void                         *inRefCon,
 
 - (BufferManager*)getBufferManagerInstance {
     return _bufferManager;
+}
+
+- (void)playButtonPressedSound {
+    [_audioPlayer play];
+}
+
+- (OSStatus)startIOUnit {
+    OSStatus err = AudioOutputUnitStart(_rioUnit);
+    if (err) NSLog(@"couldn't start AURemoteIO: %d", (int)err);
+    return err;
+}
+
+- (OSStatus)stopIOUnit {
+    OSStatus err = AudioOutputUnitStop(_rioUnit);
+    if (err)
+        NSLog(@"couldn't stop AURemoteIO: %d", (int)err);
+    return err;
+}
+
+- (double)sessionSampleRate {
+    return [[AVAudioSession sharedInstance] sampleRate];
 }
 
 #pragma mark - Private Methods
@@ -136,10 +148,10 @@ static OSStatus	performRender (void                         *inRefCon,
                                                    object:sessionInstance];
         
         // if media services are reset, we need to rebuild our audio chain
-        [[NSNotificationCenter defaultCenter]	addObserver:	self
-                                                 selector:	@selector(handleMediaServerReset:)
-                                                     name:	AVAudioSessionMediaServicesWereResetNotification
-                                                   object:	sessionInstance];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(handleMediaServerReset:)
+                                                     name:AVAudioSessionMediaServicesWereResetNotification
+                                                   object:sessionInstance];
         
         // activate the audio session
         [[AVAudioSession sharedInstance] setActive:YES error:&error];
@@ -157,7 +169,6 @@ static OSStatus	performRender (void                         *inRefCon,
 - (void)setupIOUnit {
     try {
         // Create a new instance of AURemoteIO
-        
         AudioComponentDescription desc;
         desc.componentType = kAudioUnitType_Output;
         desc.componentSubType = kAudioUnitSubType_RemoteIO;
@@ -166,31 +177,24 @@ static OSStatus	performRender (void                         *inRefCon,
         desc.componentFlagsMask = 0;
         
         AudioComponent comp = AudioComponentFindNext(NULL, &desc);
-        XThrowIfError(AudioComponentInstanceNew(comp, &_rioUnit), "couldn't create a new instance of AURemoteIO");
-        
-        //  Enable input and output on AURemoteIO
-        //  Input is enabled on the input scope of the input element
-        //  Output is enabled on the output scope of the output element
+        XThrowIfError(AudioComponentInstanceNew(comp, &_rioUnit), "1");
         
         UInt32 one = 1;
-        XThrowIfError(AudioUnitSetProperty(_rioUnit, kAudioOutputUnitProperty_EnableIO, kAudioUnitScope_Input, 1, &one, sizeof(one)), "could not enable input on AURemoteIO");
-        XThrowIfError(AudioUnitSetProperty(_rioUnit, kAudioOutputUnitProperty_EnableIO, kAudioUnitScope_Output, 0, &one, sizeof(one)), "could not enable output on AURemoteIO");
-        
-        // Explicitly set the input and output client formats
-        // sample rate = 44100, num channels = 1, format = 32 bit floating point
+        XThrowIfError(AudioUnitSetProperty(_rioUnit, kAudioOutputUnitProperty_EnableIO, kAudioUnitScope_Input, 1, &one, sizeof(one)), "2");
+        XThrowIfError(AudioUnitSetProperty(_rioUnit, kAudioOutputUnitProperty_EnableIO, kAudioUnitScope_Output, 0, &one, sizeof(one)), "3");
         
         CAStreamBasicDescription ioFormat = CAStreamBasicDescription(44100, 1, CAStreamBasicDescription::kPCMFormatFloat32, false);
-        XThrowIfError(AudioUnitSetProperty(_rioUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 1, &ioFormat, sizeof(ioFormat)), "couldn't set the input client format on AURemoteIO");
-        XThrowIfError(AudioUnitSetProperty(_rioUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &ioFormat, sizeof(ioFormat)), "couldn't set the output client format on AURemoteIO");
+        XThrowIfError(AudioUnitSetProperty(_rioUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 1, &ioFormat, sizeof(ioFormat)), "4");
+        XThrowIfError(AudioUnitSetProperty(_rioUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &ioFormat, sizeof(ioFormat)), "5");
         
         // Set the MaximumFramesPerSlice property. This property is used to describe to an audio unit the maximum number
         // of samples it will be asked to produce on any single given call to AudioUnitRender
         UInt32 maxFramesPerSlice = 4096;
-        XThrowIfError(AudioUnitSetProperty(_rioUnit, kAudioUnitProperty_MaximumFramesPerSlice, kAudioUnitScope_Global, 0, &maxFramesPerSlice, sizeof(UInt32)), "couldn't set max frames per slice on AURemoteIO");
+        XThrowIfError(AudioUnitSetProperty(_rioUnit, kAudioUnitProperty_MaximumFramesPerSlice, kAudioUnitScope_Global, 0, &maxFramesPerSlice, sizeof(UInt32)), "6");
         
         // Get the property value back from AURemoteIO. We are going to use this value to allocate buffers accordingly
         UInt32 propSize = sizeof(UInt32);
-        XThrowIfError(AudioUnitGetProperty(_rioUnit, kAudioUnitProperty_MaximumFramesPerSlice, kAudioUnitScope_Global, 0, &maxFramesPerSlice, &propSize), "couldn't get max frames per slice on AURemoteIO");
+        XThrowIfError(AudioUnitGetProperty(_rioUnit, kAudioUnitProperty_MaximumFramesPerSlice, kAudioUnitScope_Global, 0, &maxFramesPerSlice, &propSize), "7");
         
         _bufferManager = new BufferManager(maxFramesPerSlice);
         _dcRejectionFilter = new DCRejectionFilter;
@@ -208,19 +212,17 @@ static OSStatus	performRender (void                         *inRefCon,
         AURenderCallbackStruct renderCallback;
         renderCallback.inputProc = performRender;
         renderCallback.inputProcRefCon = NULL;
-        XThrowIfError(AudioUnitSetProperty(_rioUnit, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &renderCallback, sizeof(renderCallback)), "couldn't set render callback on AURemoteIO");
+        XThrowIfError(AudioUnitSetProperty(_rioUnit, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &renderCallback, sizeof(renderCallback)), "8");
         
         // Initialize the AURemoteIO instance
-        XThrowIfError(AudioUnitInitialize(_rioUnit), "couldn't initialize AURemoteIO instance");
+        XThrowIfError(AudioUnitInitialize(_rioUnit), "9");
     }
-    
     catch (CAXException &e) {
         NSLog(@"Error returned from setupIOUnit: %d: %s", (int)e.mError, e.mOperation);
     }
     catch (...) {
         NSLog(@"Unknown error returned from setupIOUnit");
     }
-    
     return;
 }
 
@@ -232,17 +234,11 @@ static OSStatus	performRender (void                         *inRefCon,
     CFRelease(url);
 }
 
+- (BOOL)audioChainIsBeingReconstructed {
+    return _audioChainIsBeingReconstructed;
+}
 
-
-
-
-
-
-
-
-
-
-
+#pragma mark - Notifications
 
 - (void)handleInterruption:(NSNotification *)notification {
     try {
@@ -301,51 +297,15 @@ static OSStatus	performRender (void                         *inRefCon,
 }
 
 - (void)handleMediaServerReset:(NSNotification *)notification {
-    NSLog(@"Media server has reset");
     _audioChainIsBeingReconstructed = YES;
-    
     usleep(25000); //wait here for some time to ensure that we don't delete these objects while they are being accessed elsewhere
-    
     // rebuild the audio chain
     delete _bufferManager;      _bufferManager = NULL;
     delete _dcRejectionFilter;  _dcRejectionFilter = NULL;
     [_audioPlayer release]; _audioPlayer = nil;
-    
     [self setupAudioChain];
     [self startIOUnit];
-    
     _audioChainIsBeingReconstructed = NO;
 }
-
-
-
-
-
-
-- (void)playButtonPressedSound {
-    [_audioPlayer play];
-}
-
-- (OSStatus)startIOUnit {
-    OSStatus err = AudioOutputUnitStart(_rioUnit);
-    if (err) NSLog(@"couldn't start AURemoteIO: %d", (int)err);
-    return err;
-}
-
-- (OSStatus)stopIOUnit {
-    OSStatus err = AudioOutputUnitStop(_rioUnit);
-    if (err) NSLog(@"couldn't stop AURemoteIO: %d", (int)err);
-    return err;
-}
-
-- (double)sessionSampleRate {
-    return [[AVAudioSession sharedInstance] sampleRate];
-}
-
-- (BOOL)audioChainIsBeingReconstructed {
-    return _audioChainIsBeingReconstructed;
-}
-
-
 
 @end
