@@ -12,7 +12,6 @@
 #import <OpenGLES/EAGL.h>
 #import <OpenGLES/ES1/gl.h>
 #import <OpenGLES/ES1/glext.h>
-// Local includes
 #import "AudioController.h"
 
 @interface EAGLView : UIView

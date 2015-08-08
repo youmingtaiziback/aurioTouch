@@ -46,7 +46,8 @@ static OSStatus	performRender (void                         *inRefCon,
         // based on the current display mode, copy the required data to the buffer manager
         if (cd.bufferManager->GetDisplayMode() == aurioTouchDisplayModeOscilloscopeWaveform)
             cd.bufferManager->CopyAudioDataToDrawBuffer((Float32*)ioData->mBuffers[0].mData, inNumberFrames);
-        else if ((cd.bufferManager->GetDisplayMode() == aurioTouchDisplayModeSpectrum) || (cd.bufferManager->GetDisplayMode() == aurioTouchDisplayModeOscilloscopeFFT))
+        else if ((cd.bufferManager->GetDisplayMode() == aurioTouchDisplayModeSpectrum)
+              || (cd.bufferManager->GetDisplayMode() == aurioTouchDisplayModeOscilloscopeFFT))
             if (cd.bufferManager->NeedsNewFFTData())
                 cd.bufferManager->CopyAudioDataToFFTInputBuffer((Float32*)ioData->mBuffers[0].mData, inNumberFrames);
         

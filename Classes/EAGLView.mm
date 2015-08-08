@@ -153,7 +153,7 @@ double linearInterp(double valA, double valB, double fract) {
         self.multipleTouchEnabled = YES;
         
         audioController = [[AudioController alloc] init];
-        l_fftData = (Float32*) calloc([audioController getBufferManagerInstance]->GetFFTOutputBufferLength(), sizeof(Float32));
+        l_fftData = (Float32*)calloc([audioController getBufferManagerInstance]->GetFFTOutputBufferLength(), sizeof(Float32));
         oscilLine = (GLfloat*)malloc(kDefaultDrawSamples * 2 * sizeof(GLfloat));
         
         animationInterval = 1.0 / 60.0;
@@ -368,7 +368,6 @@ double linearInterp(double valA, double valB, double fract) {
     glEnableClientState(GL_VERTEX_ARRAY);
 }
 
-// Updates the OpenGL view when the timer fires
 - (void)drawView {
     // the NSTimer seems to fire one final time even though it's been invalidated
     // so just make sure and not draw if we're resigning active
@@ -900,8 +899,6 @@ double linearInterp(double valA, double valB, double fract) {
 	
 	free(spriteData);
 }
-
-
 
 
 @end
